@@ -1,0 +1,66 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2685.6">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">const express = require('express');</p>
+<p class="p1">const multer = require('multer');</p>
+<p class="p1">const cors = require('cors');</p>
+<p class="p1">const path = require('path');</p>
+<p class="p1">const { exec } = require('child_process');</p>
+<p class="p1">const fs = require('fs');</p>
+<p class="p2"><br></p>
+<p class="p1">const app = express();</p>
+<p class="p1">app.use(cors());</p>
+<p class="p2"><br></p>
+<p class="p1">// ตั้งค่าโฟลเดอร์รับรูปภาพจาก iPad</p>
+<p class="p1">const storage = multer.diskStorage({</p>
+<p class="p1"><span class="Apple-converted-space">    </span>destination: (req, file, cb) =&gt; { cb(null, 'prints/'); },</p>
+<p class="p1"><span class="Apple-converted-space">    </span>filename: (req, file, cb) =&gt; { cb(null, file.originalname); }</p>
+<p class="p1">});</p>
+<p class="p1">const upload = multer({ storage: storage });</p>
+<p class="p2"><br></p>
+<p class="p1">// ตรวจสอบว่ามีโฟลเดอร์ prints หรือยัง</p>
+<p class="p1">if (!fs.existsSync('prints')){</p>
+<p class="p1"><span class="Apple-converted-space">    </span>fs.mkdirSync('prints');</p>
+<p class="p1">}</p>
+<p class="p2"><br></p>
+<p class="p1">// จุดรับรูปภาพจาก iPad และสั่งปริ้นทันที</p>
+<p class="p1">app.post('/upload', upload.single('photo'), (req, res) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if (!req.file) return res.status(400).json({ success: false });</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>const filePath = path.join(__dirname, req.file.path);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>console.log(`ได้รับรูปภาพใหม่: ${filePath} -&gt; กำลังสั่งปริ้นออกสาย...`);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// คำสั่งสั่งปริ้นอัตโนมัติผ่านสาย (เช็กระบบปฏิบัติการคอมพิวเตอร์ของคุณ)</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// สำหรับ Windows (ต้องติดตั้งโปรแกรม IrfanView หรือใช้ PowerShell)</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const printCommand = `powershell -Command "Start-Process mspaint -ArgumentList '/p \\"${filePath}\\"' -WindowStyle Hidden"`;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// สำหรับ Mac / Linux (ใช้คำสั่ง lp สั่งปริ้นเข้าเครื่องปริ้นหลักได้เลย)</p>
+<p class="p1"><span class="Apple-converted-space">    </span>// const printCommand = `lp "${filePath}"`;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>exec(printCommand, (error) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>if (error) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>console.error(`เกิดข้อผิดพลาดในการปริ้น: ${error.message}`);</p>
+<p class="p1"><span class="Apple-converted-space">            </span>return res.status(500).json({ success: false, error: error.message });</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>console.log('สั่งปริ้นไปยังสาย USB สำเร็จ!');</p>
+<p class="p1"><span class="Apple-converted-space">        </span>res.json({ success: true });</p>
+<p class="p1"><span class="Apple-converted-space">    </span>});</p>
+<p class="p1">});</p>
+<p class="p2"><br></p>
+<p class="p1">app.listen(3000, '0.0.0.0', () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>console.log('Server โฟโต้บูธฝั่งคอมพิวเตอร์เริ่มทำงานแล้วที่พอร์ต 3000...');</p>
+<p class="p1">});</p>
+</body>
+</html>
