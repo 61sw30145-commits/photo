@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>บันทึกรายรับ-รายจ่าย (Expense Tracker)</title>
+  <title>บันทึกรายรับ-รายจ่าย (Google Sheets Sync)</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -41,7 +41,6 @@
   </script>
   <style>
     body { font-family: 'Prompt', 'Inter', sans-serif; background-color: #f8fafc; color: #1e293b; }
-    /* Hide scrollbar for clean aesthetics */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
@@ -54,27 +53,18 @@
     <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-sm">
       <div class="flex items-center space-x-3">
         <div class="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-          <i class="fa-solid font-mono fa-wallet"></i>
+          <i class="fa-solid fa-wallet"></i>
         </div>
         <div>
           <h1 class="text-lg font-semibold tracking-tight text-slate-900">Expense Tracker</h1>
-          <p class="text-xs text-slate-500" id="syncStatus"><i class="fa-solid fa-cloud me-1"></i> โหมดใช้งานในเครื่อง (Local Mode)</p>
+          <p class="text-xs text-slate-500" id="syncStatus"><i class="fa-solid fa-spinner fa-spin me-1"></i> กำลังโหลดข้อมูลจาก Google Sheets...</p>
         </div>
       </div>
 
-      <!-- Auth Controls -->
       <div class="flex items-center space-x-2 text-xs">
-        <div id="userInfo" class="hidden items-center space-x-2 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
-          <i class="fa-solid fa-user text-slate-600"></i>
-          <span id="userEmail" class="font-medium text-slate-700 max-w-[120px] sm:max-w-[180px] truncate">...</span>
-          <button onclick="handleLogout()" class="text-rose-500 hover:text-rose-700 ms-1 font-semibold" title="ออกจากระบบ">
-            <i class="fa-solid fa-right-from-bracket"></i>
-          </button>
-        </div>
-
-        <button id="loginBtn" onclick="openAuthModal()" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-medium transition text-xs shadow-sm flex items-center gap-1.5">
-          <i class="fa-solid fa-arrow-right-to-bracket"></i>
-          <span>เข้าสู่ระบบ / ซิงค์ข้อมูล</span>
+        <button onclick="fetchDataFromSheets()" class="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-rotate"></i>
+          <span>ดึงข้อมูลล่าสุด</span>
         </button>
       </div>
     </header>
@@ -84,21 +74,17 @@
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
         <div>
           <h2 class="text-sm font-semibold text-slate-800 flex items-center gap-2">
-            <i class="fa-solid fa-thumbtack text-slate-400"></i> รายจ่ายคงที่ประจำเดือน (Fixed Expenses)
+            <i class="fa-solid fa-thumbtack text-slate-400"></i> รายจ่ายคงที่ประจำเดือน
           </h2>
           <p class="text-xs text-slate-400">กดเพื่อใส่ข้อมูลอย่างรวดเร็ว หรือบันทึกทั้งหมดลงเดือนปัจจุบันในครั้งเดียว</p>
         </div>
         <div class="flex items-center gap-2">
-          <button onclick="openManageFixedModal()" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-600 transition">
-            <i class="fa-solid fa-gear me-1"></i> จัดการรายการ
-          </button>
           <button onclick="addAllFixedExpenses()" class="text-xs px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-medium transition shadow-sm">
             <i class="fa-solid fa-plus-double me-1"></i> บันทึกทั้งหมดลงเดือนนี้
           </button>
         </div>
       </div>
 
-      <!-- Quick Add Buttons -->
       <div id="fixedExpenseBadges" class="flex flex-wrap gap-2 pt-1">
         <!-- Rendered via JS -->
       </div>
@@ -154,7 +140,7 @@
           </div>
 
           <!-- Submit Button -->
-          <button type="submit" class="px-5 py-2 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition flex items-center gap-1.5 whitespace-nowrap">
+          <button type="submit" id="submitBtn" class="px-5 py-2 text-xs font-medium bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-sm transition flex items-center gap-1.5 whitespace-nowrap">
             <i class="fa-solid fa-check"></i>
             <span>บันทึกรายการ</span>
           </button>
@@ -175,16 +161,11 @@
             <i class="fa-solid fa-file-excel"></i>
             <span>ส่งออก Excel (.xlsx)</span>
           </button>
-          <button onclick="exportToCSV()" class="px-3 py-1.5 text-xs rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition font-medium flex items-center gap-1.5">
-            <i class="fa-solid fa-file-csv"></i>
-            <span>CSV</span>
-          </button>
         </div>
       </div>
 
       <!-- Dashboard Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <!-- Income Card -->
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-medium">รายรับรวม</p>
@@ -195,7 +176,6 @@
           </div>
         </div>
 
-        <!-- Expense Card -->
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-medium">รายจ่ายรวม</p>
@@ -206,7 +186,6 @@
           </div>
         </div>
 
-        <!-- Balance Card -->
         <div class="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
           <div>
             <p class="text-xs text-slate-400 font-medium">คงเหลือสุทธิ</p>
@@ -245,7 +224,6 @@
         </table>
       </div>
 
-      <!-- Empty State -->
       <div id="emptyState" class="hidden p-8 text-center space-y-2">
         <i class="fa-solid fa-folder-open text-3xl text-slate-300"></i>
         <p class="text-xs text-slate-400">ยังไม่มีรายการบันทึกในเดือนนี้</p>
@@ -253,131 +231,54 @@
     </section>
   </div>
 
-  <!-- Modal: Manage Fixed Expenses -->
-  <div id="fixedModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-md w-full p-5 shadow-xl border border-slate-100 space-y-4">
-      <div class="flex items-center justify-between border-b pb-3 border-slate-100">
-        <h3 class="text-sm font-semibold text-slate-800">จัดการรายจ่ายคงที่ประจำเดือน</h3>
-        <button onclick="closeManageFixedModal()" class="text-slate-400 hover:text-slate-600 text-sm">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <!-- Add New Fixed Form -->
-      <form onsubmit="handleAddFixedExpense(event)" class="flex gap-2">
-        <input type="text" id="newFixedTitle" placeholder="ชื่อรายการ (เช่น ค่าเน็ต)" required class="flex-1 px-3 py-1.5 text-xs rounded-xl border border-slate-200">
-        <input type="number" id="newFixedAmount" placeholder="จำนวนเงิน" step="0.01" required class="w-24 px-3 py-1.5 text-xs rounded-xl border border-slate-200">
-        <button type="submit" class="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-xs hover:bg-slate-800">เพิ่ม</button>
-      </form>
-
-      <!-- Fixed Items List -->
-      <div id="fixedItemsList" class="space-y-2 max-h-60 overflow-y-auto no-scrollbar pt-2">
-        <!-- Rendered via JS -->
-      </div>
-
-      <div class="pt-2 text-right">
-        <button onclick="closeManageFixedModal()" class="px-4 py-1.5 text-xs rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50">ปิด</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Auth Login / Sync Info -->
-  <div id="authModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-xl border border-slate-100 space-y-4 text-center">
-      <div class="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto text-slate-700 text-xl">
-        <i class="fa-solid fa-cloud-arrow-up"></i>
-      </div>
-      
-      <div>
-        <h3 class="text-base font-semibold text-slate-900">เข้าสู่ระบบเพื่อซิงค์ข้อมูล</h3>
-        <p class="text-xs text-slate-500 mt-1">ใช้งานได้กับ Firebase Cloud Sync หรือเปิดใช้งานบน GitHub Pages ฟรี</p>
-      </div>
-
-      <div class="space-y-2 pt-2">
-        <p class="text-xs text-slate-400 bg-slate-50 p-3 rounded-xl border border-slate-100 text-left">
-          💡 <span class="font-medium text-slate-600">คำแนะนำ:</span> หากรันบน GitHub Pages คุณสามารถเชื่อมต่อ Firebase Config ในสคริปต์ด้านล่างเพื่อปลดล็อกระบบล็อกอินและซิงค์ข้อมูลข้ามอุปกรณ์
-        </p>
-      </div>
-
-      <div class="pt-2">
-        <button onclick="closeAuthModal()" class="w-full py-2 text-xs font-medium bg-slate-900 text-white rounded-xl hover:bg-slate-800">
-          เข้าใจแล้ว / ใช้โหมด Local ต่อ
-        </button>
-      </div>
-    </div>
-  </div>
-
   <!-- JavaScript Application Engine -->
   <script>
-    // --- APP CONSTANTS & STATE ---
-    const STORAGE_KEYS = {
-      TRANSACTIONS: 'expense_app_transactions',
-      SUGGESTIONS: 'expense_app_suggestions',
-      FIXED_EXPENSES: 'expense_app_fixed_expenses'
-    };
+    // ⚠️ นำ URL จาก Google Apps Script (Web App URL) มาวางแทนที่ข้อความด้านล่างนี้ ⚠️
+    const GOOGLE_SCRIPT_URL = 'ใส่_WEB_APP_URL_ที่นี่';
 
     const DEFAULT_CATEGORIES = {
       expense: ['ค่าที่พัก/น้ำไฟ', 'อาหาร & เครื่องดื่ม', 'เดินทาง/น้ำมัน', 'ช้อปปิ้ง', 'ความบันเทิง', 'อื่นๆ'],
       income: ['เงินเดือน', 'ธุรกิจส่วนตัว', 'การลงทุน', 'โบนัส', 'อื่นๆ']
     };
 
-    const DEFAULT_FIXED_EXPENSES = [
+    const FIXED_EXPENSES = [
       { id: 'f1', title: 'ค่าห้อง', amount: 2500, category: 'ค่าที่พัก/น้ำไฟ' },
       { id: 'f2', title: 'ค่าน้ำ', amount: 150, category: 'ค่าที่พัก/น้ำไฟ' },
       { id: 'f3', title: 'ค่าส่วนกลาง', amount: 200, category: 'ค่าที่พัก/น้ำไฟ' }
     ];
 
     let state = {
-      transactions: [],
-      suggestions: ['ค่าห้อง', 'ค่าน้ำ', 'ค่าส่วนกลาง', 'ค่าอาหาร', 'ค่าเดินทาง', 'ค่าเน็ต'],
-      fixedExpenses: []
+      transactions: []
     };
 
-    // --- INITIALIZATION ---
     window.addEventListener('DOMContentLoaded', () => {
-      // Set current date & month
       const today = new Date().toISOString().split('T')[0];
-      const currentMonth = today.substring(0, 7);
-      
       document.getElementById('txDate').value = today;
-      document.getElementById('selectedMonth').value = currentMonth;
+      document.getElementById('selectedMonth').value = today.substring(0, 7);
 
-      // Load Local Storage Data
-      loadLocalStorageData();
       updateCategoryOptions();
       renderFixedBadges();
-      renderDashboard();
+      fetchDataFromSheets();
     });
 
-    // --- LOCAL STORAGE MANAGER ---
-    function loadLocalStorageData() {
+    // --- FETCH DATA FROM GOOGLE SHEETS ---
+    async function fetchDataFromSheets() {
+      const statusElem = document.getElementById('syncStatus');
+      statusElem.innerHTML = `<i class="fa-solid fa-spinner fa-spin me-1 text-blue-500"></i> กำลังซิงค์ข้อมูล...`;
+      
       try {
-        const savedTx = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
-        state.transactions = savedTx ? JSON.parse(savedTx) : [];
-
-        const savedSugg = localStorage.getItem(STORAGE_KEYS.SUGGESTIONS);
-        if (savedSugg) state.suggestions = JSON.parse(savedSugg);
-
-        const savedFixed = localStorage.getItem(STORAGE_KEYS.FIXED_EXPENSES);
-        state.fixedExpenses = savedFixed ? JSON.parse(savedFixed) : [...DEFAULT_FIXED_EXPENSES];
-      } catch (e) {
-        console.error("Failed to load local storage:", e);
-        state.fixedExpenses = [...DEFAULT_FIXED_EXPENSES];
-      }
-      renderSuggestions();
-    }
-
-    function saveLocalStorageData() {
-      try {
-        localStorage.setItem(STORAGE_KEYS.TRANSACTIONS, JSON.stringify(state.transactions));
-        localStorage.setItem(STORAGE_KEYS.SUGGESTIONS, JSON.stringify(state.suggestions));
-        localStorage.setItem(STORAGE_KEYS.FIXED_EXPENSES, JSON.stringify(state.fixedExpenses));
-      } catch (e) {
-        console.error("Failed to save local storage:", e);
+        const res = await fetch(GOOGLE_SCRIPT_URL);
+        const data = await res.json();
+        state.transactions = data;
+        statusElem.innerHTML = `<i class="fa-solid fa-cloud-check me-1 text-emerald-500"></i> ซิงค์กับ Google Sheets เรียบร้อย`;
+        renderDashboard();
+        renderSuggestions();
+      } catch (err) {
+        console.error(err);
+        statusElem.innerHTML = `<i class="fa-solid fa-triangle-exclamation me-1 text-rose-500"></i> เชื่อมต่อล้มเหลว (ตรวจสอบ URL)`;
       }
     }
 
-    // --- CATEGORY & SUGGESTIONS ---
     function updateCategoryOptions() {
       const type = document.getElementById('txType').value;
       const catSelect = document.getElementById('txCategory');
@@ -390,69 +291,10 @@
       });
     }
 
-    function renderSuggestions() {
-      const datalist = document.getElementById('historySuggestions');
-      datalist.innerHTML = '';
-      state.suggestions.forEach(item => {
-        const option = document.createElement('option');
-        option.value = item;
-        datalist.appendChild(option);
-      });
-    }
-
-    function addSuggestionIfNew(title) {
-      if (title && !state.suggestions.includes(title)) {
-        state.suggestions.push(title);
-        saveLocalStorageData();
-        renderSuggestions();
-      }
-    }
-
-    // --- FORM HANDLING ---
-    function handleFormSubmit(e) {
-      e.preventDefault();
-      const date = document.getElementById('txDate').value;
-      const type = document.getElementById('txType').value;
-      const title = document.getElementById('txTitle').value.trim();
-      const amount = parseFloat(document.getElementById('txAmount').value);
-      const category = document.getElementById('txCategory').value;
-
-      if (!title || isNaN(amount) || amount <= 0) return;
-
-      const newTx = {
-        id: 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
-        date,
-        type,
-        title,
-        amount,
-        category
-      };
-
-      state.transactions.push(newTx);
-      addSuggestionIfNew(title);
-      saveLocalStorageData();
-
-      // Reset Form (keep date & type)
-      document.getElementById('txTitle').value = '';
-      document.getElementById('txAmount').value = '';
-
-      renderDashboard();
-    }
-
-    function deleteTransaction(id) {
-      if (confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) {
-        state.transactions = state.transactions.filter(t => t.id !== id);
-        saveLocalStorageData();
-        renderDashboard();
-      }
-    }
-
-    // --- FIXED EXPENSES ---
     function renderFixedBadges() {
       const container = document.getElementById('fixedExpenseBadges');
       container.innerHTML = '';
-
-      state.fixedExpenses.forEach(item => {
+      FIXED_EXPENSES.forEach(item => {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.onclick = () => fillFormWithFixed(item);
@@ -467,101 +309,93 @@
       updateCategoryOptions();
       document.getElementById('txTitle').value = item.title;
       document.getElementById('txAmount').value = item.amount;
-      if (item.category) document.getElementById('txCategory').value = item.category;
+      document.getElementById('txCategory').value = item.category;
     }
 
-    function addAllFixedExpenses() {
+    function renderSuggestions() {
+      const datalist = document.getElementById('historySuggestions');
+      datalist.innerHTML = '';
+      const titles = [...new Set(state.transactions.map(t => t.title))];
+      titles.forEach(item => {
+        const option = document.createElement('option');
+        option.value = item;
+        datalist.appendChild(option);
+      });
+    }
+
+    // --- FORM SUBMIT & API CALL ---
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> บันทึก...`;
+
+      const newTx = {
+        id: 'tx_' + Date.now(),
+        date: document.getElementById('txDate').value,
+        type: document.getElementById('txType').value,
+        title: document.getElementById('txTitle').value.trim(),
+        amount: parseFloat(document.getElementById('txAmount').value),
+        category: document.getElementById('txCategory').value
+      };
+
+      try {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'add', data: newTx })
+        });
+        document.getElementById('txTitle').value = '';
+        document.getElementById('txAmount').value = '';
+        await fetchDataFromSheets();
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = `<i class="fa-solid fa-check"></i> <span>บันทึกรายการ</span>`;
+      }
+    }
+
+    async function addAllFixedExpenses() {
       const selectedMonth = document.getElementById('selectedMonth').value;
       const today = new Date().toISOString().split('T')[0];
       const targetDate = today.startsWith(selectedMonth) ? today : `${selectedMonth}-01`;
 
-      let addedCount = 0;
-      state.fixedExpenses.forEach(item => {
+      if (!confirm(`ต้องการบันทึกรายจ่ายคงที่ทั้งหมดลงวันที่ ${targetDate} หรือไม่?`)) return;
+
+      for (const item of FIXED_EXPENSES) {
         const newTx = {
           id: 'tx_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
           date: targetDate,
           type: 'expense',
           title: item.title,
           amount: item.amount,
-          category: item.category || 'ค่าที่พัก/น้ำไฟ'
+          category: item.category
         };
-        state.transactions.push(newTx);
-        addSuggestionIfNew(item.title);
-        addedCount++;
-      });
-
-      saveLocalStorageData();
-      renderDashboard();
-      alert(`บันทึกรายจ่ายคงที่ ${addedCount} รายการ ลงในวันที่ ${targetDate} เรียบร้อยแล้ว`);
+        await fetch(GOOGLE_Script_URL = GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'add', data: newTx })
+        });
+      }
+      await fetchDataFromSheets();
     }
 
-    // --- MANAGE FIXED MODAL ---
-    function openManageFixedModal() {
-      renderFixedItemsList();
-      document.getElementById('fixedModal').classList.remove('hidden');
-      document.getElementById('fixedModal').classList.add('flex');
-    }
-
-    function closeManageFixedModal() {
-      document.getElementById('fixedModal').classList.add('hidden');
-      document.getElementById('fixedModal').classList.remove('flex');
-    }
-
-    function renderFixedItemsList() {
-      const container = document.getElementById('fixedItemsList');
-      container.innerHTML = '';
-
-      state.fixedExpenses.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-xs';
-        div.innerHTML = `
-          <div>
-            <p class="font-medium text-slate-800">${item.title}</p>
-            <p class="text-slate-400">฿${item.amount.toLocaleString()}</p>
-          </div>
-          <button onclick="deleteFixedExpense('${item.id}')" class="text-rose-400 hover:text-rose-600 p-1">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        `;
-        container.appendChild(div);
-      });
-    }
-
-    function handleAddFixedExpense(e) {
-      e.preventDefault();
-      const title = document.getElementById('newFixedTitle').value.trim();
-      const amount = parseFloat(document.getElementById('newFixedAmount').value);
-
-      if (!title || isNaN(amount)) return;
-
-      state.fixedExpenses.push({
-        id: 'f_' + Date.now(),
-        title,
-        amount,
-        category: 'ค่าที่พัก/น้ำไฟ'
-      });
-
-      saveLocalStorageData();
-      renderFixedBadges();
-      renderFixedItemsList();
-
-      document.getElementById('newFixedTitle').value = '';
-      document.getElementById('newFixedAmount').value = '';
-    }
-
-    function deleteFixedExpense(id) {
-      state.fixedExpenses = state.fixedExpenses.filter(f => f.id !== id);
-      saveLocalStorageData();
-      renderFixedBadges();
-      renderFixedItemsList();
+    async function deleteTransaction(id) {
+      if (!confirm('คุณต้องการลบรายการนี้ใช่หรือไม่?')) return;
+      try {
+        await fetch(GOOGLE_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'delete', id: id })
+        });
+        await fetchDataFromSheets();
+      } catch (err) {
+        alert('เกิดข้อผิดพลาดในการลบรายการ');
+      }
     }
 
     // --- DASHBOARD & TABLE RENDER ---
     function renderDashboard() {
       const selectedMonth = document.getElementById('selectedMonth').value;
-      const filtered = state.transactions.filter(t => t.date.startsWith(selectedMonth));
-
-      // Sort by Date descending
+      const filtered = state.transactions.filter(t => t.date && t.date.startsWith(selectedMonth));
       filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
 
       let totalIncome = 0;
@@ -602,7 +436,6 @@
         tbody.appendChild(tr);
       });
 
-      // Update Summary Text
       document.getElementById('totalIncomeText').textContent = `฿${totalIncome.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
       document.getElementById('totalExpenseText').textContent = `฿${totalExpense.toLocaleString('th-TH', { minimumFractionDigits: 2 })}`;
       
@@ -614,10 +447,10 @@
       document.getElementById('transactionCountBadge').textContent = `${filtered.length} รายการ`;
     }
 
-    // --- EXPORT FUNCTIONS ---
+    // --- EXPORT TO EXCEL ---
     function exportToExcel() {
       const selectedMonth = document.getElementById('selectedMonth').value;
-      const filtered = state.transactions.filter(t => t.date.startsWith(selectedMonth));
+      const filtered = state.transactions.filter(t => t.date && t.date.startsWith(selectedMonth));
 
       if (filtered.length === 0) {
         alert('ไม่มีข้อมูลสำหรับส่งออกในเดือนนี้');
@@ -636,47 +469,7 @@
       const worksheet = XLSX.utils.json_to_sheet(excelData);
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "รายรับรายจ่าย");
-
       XLSX.writeFile(workbook, `Expense_Report_${selectedMonth}.xlsx`);
-    }
-
-    function exportToCSV() {
-      const selectedMonth = document.getElementById('selectedMonth').value;
-      const filtered = state.transactions.filter(t => t.date.startsWith(selectedMonth));
-
-      if (filtered.length === 0) {
-        alert('ไม่มีข้อมูลสำหรับส่งออกในเดือนนี้');
-        return;
-      }
-
-      let csvContent = "\uFEFFลำดับ,วันที่,ประเภท,รายการ,หมวดหมู่,จำนวนเงิน\n";
-      filtered.forEach((t, i) => {
-        csvContent += `${i + 1},${t.date},${t.type === 'income' ? 'รายรับ' : 'รายจ่าย'},"${t.title}",${t.category},${t.amount}\n`;
-      });
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Expense_Report_${selectedMonth}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    // --- AUTH MODAL ---
-    function openAuthModal() {
-      document.getElementById('authModal').classList.remove('hidden');
-      document.getElementById('authModal').classList.add('flex');
-    }
-
-    function closeAuthModal() {
-      document.getElementById('authModal').classList.add('hidden');
-      document.getElementById('authModal').classList.remove('flex');
-    }
-
-    function handleLogout() {
-      alert('ออกจากระบบเรียบร้อย');
     }
   </script>
 </body>
